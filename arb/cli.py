@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from . import config
 from .maths import back_lay_stakes, back_stake_for_capital, dutch_stakes, effective_back_odds
 from .odds_api import OddsAPI, OddsAPIError, Snapshot, call_cost, load_snapshots
-from .report import format_opportunity, log_opportunities
+from .report import format_opportunity, log_opportunities, write_latest
 from .scanner import find_opportunities, parse_events
 
 
@@ -95,6 +95,19 @@ def _scan_once(args, snaps: list[Snapshot]):
     return markets, arbs, opps, now
 
 
+def _stats(snaps, markets) -> dict:
+    quota = next((s.quota for s in reversed(snaps) if s.quota), {})
+    return {"sports": sorted({s.sport for s in snaps}), "events": len({m.event_id for m in markets}),
+            "markets": len(markets), "bookmakers": len({q.book for m in markets for q in m.quotes}),
+            "credits_left": quota.get("remaining"),
+            "odds_at": min(s.fetched_at for s in snaps).isoformat(timespec="seconds") if snaps else None}
+
+
+def _save_latest(args, snaps, markets, arbs, opps) -> None:
+    near = [o for o in opps if o not in arbs][:5]
+    write_latest({**_stats(snaps, markets), "currency": args.currency}, arbs, near, args.budget, args.increment)
+
+
 def _summary(snaps, markets, replay: bool = False) -> str:
     events = {m.event_id for m in markets}
     books = {q.book for m in markets for q in m.quotes}
@@ -109,6 +122,8 @@ def cmd_scan(args) -> None:
     if not snaps:
         return
     markets, arbs, opps, now = _scan_once(args, snaps)
+    if not (args.demo or args.from_file):
+        _save_latest(args, snaps, markets, arbs, opps)
     print(_summary(snaps, markets, replay=bool(args.demo or args.from_file)))
     print()
     if arbs:
@@ -149,7 +164,9 @@ def cmd_watch(args) -> None:
                 snaps.append(api.odds(sport, args.regions, args.markets, args.bookmakers))
             except OddsAPIError as e:
                 print(f"  {sport}: {e}")
-        markets, arbs, _, now = _scan_once(args, snaps)
+        markets, arbs, opps, now = _scan_once(args, snaps)
+        if snaps:
+            _save_latest(args, snaps, markets, arbs, opps)
         fresh = [o for o in arbs if o.roi > seen.get(o.key, -1) + 0.0025]
         stamp = datetime.now().strftime("%H:%M")
         print(f"[{stamp}] {_summary(snaps, markets)} · {len(arbs)} arbs, {len(fresh)} new")

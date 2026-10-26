@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -111,3 +112,30 @@ def log_opportunities(opps: list[Opportunity], path: Path = config.LOG_PATH) -> 
                 "legs": " | ".join(f"{l.side} {l.outcome} {l.odds} @ {l.book}" for l in o.legs),
                 "flags": " | ".join(o.flags),
             })
+
+
+def opportunity_json(opp: Opportunity, budget: float, increment: float = config.STAKE_INCREMENT) -> dict:
+    m, p = opp.market, plan(opp, budget, increment)
+    return {
+        "kind": opp.kind, "roi": round(opp.roi, 6), "sport": m.sport, "sport_title": m.sport_title,
+        "event": m.event, "event_id": m.event_id, "commence": m.commence.isoformat(), "market": m.label,
+        "legs": [{"side": l.side, "outcome": l.outcome, "odds": l.odds, "book": l.book, "book_title": l.book_title,
+                  "commission": l.commission, "stake": round(stake, 2), "liability": round(liab, 2),
+                  "updated": l.updated.isoformat(), "also_at": list(l.also_at)}
+                 for l, stake, liab in zip(opp.legs, p.stakes, p.liabilities)],
+        "capital": round(p.capital, 2), "profit_min": round(min(p.profits.values()), 2),
+        "profit_max": round(max(p.profits.values()), 2), "increment": p.increment,
+        "flags": opp.flags, "alternatives": [a.summary for a in opp.alternatives],
+    }
+
+
+def write_latest(summary: dict, arbs: list[Opportunity], near: list[Opportunity], budget: float,
+                 increment: float = config.STAKE_INCREMENT, path: Path = config.LATEST_PATH) -> None:
+    """The last live scan as JSON, replaced atomically so a reader never sees half a file."""
+    out = {"scanned_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "budget": budget, **summary,
+           "arbs": [opportunity_json(o, budget, increment) for o in arbs],
+           "near_misses": [opportunity_json(o, budget, increment) for o in near]}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(out, indent=1))
+    tmp.replace(path)

@@ -11,3 +11,5 @@ __pycache__/
 # Live API responses and your opportunity log
 data/cache/
 data/opportunities.csv
+data/latest.json
+data/latest.tmp

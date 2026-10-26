@@ -8,7 +8,7 @@ from conftest import NOW, book, event
 
 from arb.cli import main
 from arb.odds_api import OddsAPI, Snapshot, call_cost
-from arb.report import format_opportunity, log_opportunities, plan
+from arb.report import format_opportunity, log_opportunities, plan, write_latest
 from arb.scanner import find_opportunities, parse_events
 
 ARB = event([book("a", {"Home": 2.62, "Draw": 3.30, "Away": 3.00}, title="Book A"),
@@ -87,3 +87,13 @@ def test_thin_edge_falls_back_to_finer_rounding():
     assert 0 < opp.roi < 0.01
     p = plan(opp, 100, increment=1.0)
     assert p.increment < 1.0 and min(p.profits.values()) > 0
+
+
+def test_latest_json_has_what_the_desk_page_shows(tmp_path):
+    path = tmp_path / "latest.json"
+    write_latest({"events": 2, "currency": "€"}, [_opp(ARB), _opp(BACK_LAY)], [], 100, path=path)
+    d = json.loads(path.read_text())
+    assert d["events"] == 2 and len(d["arbs"]) == 2 and d["near_misses"] == []
+    arb = d["arbs"][0]
+    assert {"event", "commence", "market", "roi", "capital", "profit_min", "flags", "legs"} <= arb.keys()
+    assert {"side", "outcome", "odds", "book_title", "stake", "liability"} <= arb["legs"][0].keys()

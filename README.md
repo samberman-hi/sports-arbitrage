@@ -48,7 +48,8 @@ Useful options:
 | `--bookmakers a,b,c` | fetch only these books, which costs 1 region's worth per 10 books |
 
 Every arb found live is appended to `data/opportunities.csv`, so the log builds up a
-record of when and where arbs appear. Calculators work offline:
+record of when and where arbs appear. Each live scan also writes `data/latest.json` (the
+arbs with their stakes, warnings and the closest near misses) for dashboards to read. Calculators work offline:
 
 ```bash
 python -m arb stake 2.62 3.45 3.30 --budget 100 --increment 1

@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 CACHE_DIR = DATA_DIR / "cache"
 LOG_PATH = DATA_DIR / "opportunities.csv"
+LATEST_PATH = DATA_DIR / "latest.json"   # the last live scan, read by the Desk app's Arbitrage page
 SAMPLE_PATH = DATA_DIR / "sample" / "odds_sample.json"
 
 API_BASE = "https://api.the-odds-api.com/v4"
